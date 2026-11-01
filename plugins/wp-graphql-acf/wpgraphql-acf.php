@@ -53,7 +53,10 @@ if ( ! function_exists( 'graphql_acf_init' ) ) {
 	 */
 	function graphql_acf_init() {
 		$wp_graphql_acf = new \WPGraphQLAcf();
-		add_action( 'plugins_loaded', [ $wp_graphql_acf, 'init' ], 50 );
+
+		// Check for ACF after the theme loads, so ACF bundled in a theme is found too.
+		// Priority 5 runs before WPGraphQL fires graphql_init on this hook (priority 10).
+		add_action( 'after_setup_theme', [ $wp_graphql_acf, 'init' ], 5 );
 	}
 
 	/**
