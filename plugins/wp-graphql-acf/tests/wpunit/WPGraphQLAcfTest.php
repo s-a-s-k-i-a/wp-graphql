@@ -54,6 +54,42 @@ class WPGraphQLAcfTest extends \Tests\WPGraphQL\Acf\WPUnit\WPGraphQLAcfTestCase 
 	}
 
 	/**
+	 * Regression test for wp-graphql/wp-graphql#4518: a theme can bundle ACF and load it from its
+	 * functions.php. WordPress loads that file after plugins_loaded, so checking for ACF on
+	 * plugins_loaded never finds it. The check must run on after_setup_theme, and before WPGraphQL
+	 * fires graphql_init there at priority 10, because init() hooks the "cannot load" debug message
+	 * to graphql_init.
+	 */
+	public function test_plugin_init_runs_after_the_theme_loads_and_before_graphql_init(): void {
+		$hooks = $this->get_hooks_running_plugin_init();
+
+		$this->assertSame( [ 'after_setup_theme' ], array_keys( $hooks ), 'WPGraphQLAcf::init must be hooked to after_setup_theme only, so ACF loaded by a theme is found. See wp-graphql/wp-graphql#4518.' );
+		$this->assertLessThan( 10, $hooks['after_setup_theme'], 'WPGraphQLAcf::init must run before graphql_init (after_setup_theme, priority 10).' );
+	}
+
+	/**
+	 * Find every hook that runs WPGraphQLAcf::init, as registered by the main plugin file.
+	 *
+	 * @return array<string,int> Hook name => priority.
+	 */
+	private function get_hooks_running_plugin_init(): array {
+		global $wp_filter;
+
+		$hooks = [];
+		foreach ( $wp_filter as $hook_name => $hook ) {
+			foreach ( $hook->callbacks as $priority => $callbacks ) {
+				foreach ( $callbacks as $callback ) {
+					if ( is_array( $callback['function'] ) && $callback['function'][0] instanceof \WPGraphQLAcf && 'init' === $callback['function'][1] ) {
+						$hooks[ $hook_name ] = $priority;
+					}
+				}
+			}
+		}
+
+		return $hooks;
+	}
+
+	/**
 	 * When our acf/post_type/registration_args filter is applied (as it is when running at init 0),
 	 * a post type registered with the resulting args must have show_in_graphql and graphql names
 	 * on its WP_Post_Type object, so WPGraphQL will include it in the schema. With init priority 20
